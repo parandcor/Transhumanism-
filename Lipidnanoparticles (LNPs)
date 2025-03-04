@@ -1,0 +1,93 @@
+# Python script to estimate the number of LNPs in an mRNA COVID-19 vaccine dose
+import math
+
+# Constants
+AVOGADRO = 6.022e23  # Avogadro's number (molecules per mole)
+
+# Function to calculate LNPs per dose
+def estimate_lnps(mrna_mass_ug, mrna_length_nt, mrna_per_lnp):
+    """
+    Estimate the number of lipid nanoparticles (LNPs) in a vaccine dose.
+    
+    Parameters:
+    - mrna_mass_ug: Mass of mRNA in the dose (in micrograms)
+    - mrna_length_nt: Length of mRNA in nucleotides (approximate)
+    - mrna_per_lnp: Estimated number of mRNA molecules per LNP
+    
+    Returns:
+    - Number of LNPs per dose
+    """
+    # Step 1: Convert mRNA mass from micrograms to grams
+    mrna_mass_g = mrna_mass_ug * 1e-6  # 1 µg = 10^-6 g
+
+    # Step 2: Calculate molecular weight of mRNA (approximate)
+    # Average molecular weight per nucleotide ~ 320 g/mol
+    mw_per_nucleotide = 320  # g/mol
+    mrna_mw = mrna_length_nt * mw_per_nucleotide  # g/mol
+
+    # Step 3: Calculate moles of mRNA in the dose
+    mrna_moles = mrna_mass_g / mrna_mw
+
+    # Step 4: Calculate number of mRNA molecules in the dose
+    mrna_molecules = mrna_moles * AVOGADRO
+
+    # Step 5: Estimate number of LNPs based on mRNA molecules per LNP
+    lnps = mrna_molecules / mrna_per_lnp
+
+    return lnps
+
+# Example usage for Pfizer and Moderna vaccines
+def main():
+    # Vaccine parameters
+    vaccines = {
+        "Pfizer-BioNTech": {
+            "mrna_mass_ug": 30,  # 30 µg mRNA per dose
+            "mrna_length_nt": 4300,  # Approx. length of Pfizer mRNA (Spike protein + UTRs)
+            "mrna_per_lnp": 50  # Assumption: 50-100 mRNA molecules per LNP
+        },
+        "Moderna (original)": {
+            "mrna_mass_ug": 100,  # 100 µg mRNA per dose
+            "mrna_length_nt": 4000,  # Approx. length of Moderna mRNA
+            "mrna_per_lnp": 50
+        }
+    }
+
+    # Calculate and print results
+    print("Estimated number of LNPs per vaccine dose:")
+    print("----------------------------------------")
+    for vaccine, params in vaccines.items():
+        lnps = estimate_lnps(
+            params["mrna_mass_ug"],
+            params["mrna_length_nt"],
+            params["mrna_per_lnp"]
+        )
+        print(f"{vaccine}:")
+        print(f"  mRNA mass: {params['mrna_mass_ug']} µg")
+        print(f"  mRNA length: {params['mrna_length_nt']} nucleotides")
+        print(f"  mRNA molecules per LNP: {params['mrna_per_lnp']}")
+        print(f"  Estimated LNPs per dose: {lnps:.2e} (~{int(lnps):,d})")
+        print()
+
+if __name__ == "__main__":
+    main()
+
+# Notes:
+# - mRNA length is an approximation based on the SARS-CoV-2 spike protein (~3800-4300 nt).
+# - mRNA per LNP is an estimate (50-100 is a common range in literature).
+# - Results are rough estimates due to variability in LNP size and encapsulation efficiency.
+
+# Explanation of the Code:
+# Inputs:
+# - mrna_mass_ug: The mass of mRNA in the vaccine dose (e.g., 30 µg for Pfizer, 100 µg for Moderna).
+# - mrna_length_nt: The approximate length of the mRNA in nucleotides (e.g., ~4000-4300 for the spike protein mRNA).
+# - mrna_per_lnp: The estimated number of mRNA molecules encapsulated per LNP (assumed as 50 here, but can vary).
+# Calculations:
+# - Converts the mRNA mass to grams.
+# - Estimates the molecular weight of the mRNA based on an average nucleotide weight (~320 g/mol).
+# - Calculates the number of mRNA molecules using Avogadro’s number.
+# - Divides by the number of mRNA molecules per LNP to estimate the total LNPs.
+# Output:
+# - The script prints the estimated LNP count for both Pfizer and Moderna vaccines in scientific notation and as an integer for readability.
+
+
+
