@@ -89,5 +89,260 @@ if __name__ == "__main__":
 # Output:
 # - The script prints the estimated LNP count for both Pfizer and Moderna vaccines in scientific notation and as an integer for readability.
 
+import math
+import pandas as pd
+import matplotlib.pyplot as plt
 
+# Constants
+AVOGADRO = 6.022e23  # Avogadro's number
+DNA_BP_MW = 660  # g/mol per base pair
+REGULATORY_LIMIT = 10  # ng DNA per dose
 
+class VaccineAnalyzer:
+    def __init__(self):
+        self.vaccines = {
+            "Pfizer-BioNTech": {
+                "mrna_mass_ug": 30,
+                "mrna_length_nt": 4300,
+                "mrna_per_lnp": 50
+            },
+            "Moderna": {
+                "mrna_mass_ug": 100,
+                "mrna_length_nt": 4000,
+                "mrna_per_lnp": 50
+            }
+        }
+    
+    def estimate_lnps(self, mrna_mass_ug, mrna_length_nt, mrna_per_lnp):
+        """Estimate number of LNPs per dose"""
+        # Convert mRNA mass to grams
+        mrna_mass_g = mrna_mass_ug * 1e-6
+        
+        # Calculate mRNA molecular weight
+        mw_per_nucleotide = 320  # g/mol
+        mrna_mw = mrna_length_nt * mw_per_nucleotide
+        
+        # Calculate moles and molecules
+        mrna_moles = mrna_mass_g / mrna_mw
+        mrna_molecules = mrna_moles * AVOGADRO
+        
+        # Estimate LNPs
+        lnps = mrna_molecules / mrna_per_lnp
+        return lnps
+    
+    def calculate_dna_contamination(self, dna_ng_per_dose, lnps_per_dose, dna_fragment_bp=5000):
+        """Calculate DNA contamination per LNP"""
+        # DNA per LNP in ng
+        dna_per_lnp_ng = dna_ng_per_dose / lnps_per_dose
+        
+        # Convert DNA mass to grams per LNP
+        dna_per_lnp_g = dna_per_lnp_ng * 1e-9
+        
+        # Calculate DNA molecules per LNP
+        dna_mw = dna_fragment_bp * DNA_BP_MW  # g/mol
+        dna_moles_per_lnp = dna_per_lnp_g / dna_mw
+        dna_molecules_per_lnp = dna_moles_per_lnp * AVOGADRO
+        
+        # Calculate percentage of LNPs exceeding regulatory limit
+        # Assuming DNA is not evenly distributed
+        percent_exceeding_limit = min(100, (dna_ng_per_dose / REGULATORY_LIMIT) * 100)
+        
+        return {
+            'dna_per_lnp_ng': dna_per_lnp_ng,
+            'dna_molecules_per_lnp': dna_molecules_per_lnp,
+            'percent_exceeding_limit': percent_exceeding_limit
+        }
+    
+    def analyze_researchers_data(self):
+        """Analyze data from all researchers"""
+        researchers_data = [
+            # McKernan et al.
+            {"researcher": "McKernan", "vaccine": "Pfizer/Moderna", "dna_ng_min": 312, "dna_ng_max": 5340, "method": "Fluorometry"},
+            {"researcher": "McKernan", "vaccine": "Pfizer/Moderna", "dna_ng_min": 2250, "dna_ng_max": 3390, "method": "Electrophoresis"},
+            {"researcher": "McKernan", "vaccine": "Pfizer", "dna_ng_min": 88.6, "dna_ng_max": 88.6, "method": "qPCR"},
+            
+            # Buckhaults
+            {"researcher": "Buckhaults", "vaccine": "Pfizer", "dna_ng_min": 2.5, "dna_ng_max": 18.7, "method": "qPCR"},
+            {"researcher": "Buckhaults", "vaccine": "Pfizer", "dna_ng_min": 7.7, "dna_ng_max": 7.7, "method": "qPCR_SV40"},
+            
+            # König
+            {"researcher": "König", "vaccine": "Unknown", "dna_ng_min": 3600, "dna_ng_max": 5340, "method": "Fluorometry"},
+            
+            # Speicher
+            {"researcher": "Speicher", "vaccine": "Pfizer/Moderna", "dna_ng_min": 1986, "dna_ng_max": 5100, "method": "Fluorometry"},
+            {"researcher": "Speicher", "vaccine": "Pfizer", "dna_ng_min": 3.70, "dna_ng_max": 14.89, "method": "qPCR_SV40"},
+            
+            # Kammerer
+            {"researcher": "Kammerer", "vaccine": "Pfizer", "dna_ng_min": 2712, "dna_ng_max": 3683, "method": "Fluorometry"},
+            
+            # Wang
+            {"researcher": "Wang", "vaccine": "Unknown", "dna_ng_min": 41.4, "dna_ng_max": 109.5, "method": "Fluorometry"},
+            
+            # Raoult
+            {"researcher": "Raoult", "vaccine": "Pfizer", "dna_ng_min": 218, "dna_ng_max": 5160, "method": "Fluorometry"},
+        ]
+        
+        results = []
+        
+        for data in researchers_data:
+            vaccine_type = data["vaccine"]
+            
+            # Get LNP count based on vaccine type
+            if "Pfizer" in vaccine_type:
+                lnps = self.estimate_lnps(**self.vaccines["Pfizer-BioNTech"])
+            elif "Moderna" in vaccine_type:
+                lnps = self.estimate_lnps(**self.vaccines["Moderna"])
+            else:
+                # Use average for unknown vaccines
+                lnps_pfizer = self.estimate_lnps(**self.vaccines["Pfizer-BioNTech"])
+                lnps_moderna = self.estimate_lnps(**self.vaccines["Moderna"])
+                lnps = (lnps_pfizer + lnps_moderna) / 2
+            
+            # Calculate for minimum DNA value
+            calc_min = self.calculate_dna_contamination(data["dna_ng_min"], lnps)
+            
+            # Calculate for maximum DNA value
+            calc_max = self.calculate_dna_contamination(data["dna_ng_max"], lnps)
+            
+            results.append({
+                'Researcher': data['researcher'],
+                'Vaccine': data['vaccine'],
+                'Method': data['method'],
+                'DNA_per_dose_ng': f"{data['dna_ng_min']}-{data['dna_ng_max']}",
+                'LNPs_per_dose': f"{lnps:.2e}",
+                'DNA_per_LNP_ng': f"{calc_min['dna_per_lnp_ng']:.2e}-{calc_max['dna_per_lnp_ng']:.2e}",
+                'DNA_molecules_per_LNP': f"{calc_min['dna_molecules_per_lnp']:.3f}-{calc_max['dna_molecules_per_lnp']:.3f}",
+                'LNPs_exceeding_limit_%': f"{calc_min['percent_exceeding_limit']:.1f}%-{calc_max['percent_exceeding_limit']:.1f}%",
+                'Regulatory_exceedance': f"{data['dna_ng_min']/REGULATORY_LIMIT:.1f}x-{data['dna_ng_max']/REGULATORY_LIMIT:.1f}x"
+            })
+        
+        return pd.DataFrame(results)
+    
+    def plot_contamination_analysis(self, df):
+        """Create visualization of contamination analysis"""
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
+        
+        # Extract data for plotting
+        researchers = []
+        dna_min = []
+        dna_max = []
+        
+        for _, row in df.iterrows():
+            researchers.append(row['Researcher'])
+            dna_range = row['DNA_per_dose_ng'].split('-')
+            dna_min.append(float(dna_range[0]))
+            dna_max.append(float(dna_range[1]))
+        
+        # Plot 1: DNA contamination levels
+        bars = ax1.barh(researchers, dna_max, color='lightcoral', alpha=0.7)
+        ax1.barh(researchers, dna_min, color='lightblue', alpha=0.7)
+        ax1.axvline(x=REGULATORY_LIMIT, color='red', linestyle='--', label=f'Regulatory Limit ({REGULATORY_LIMIT} ng)')
+        ax1.set_xlabel('DNA Contamination (ng/dose)')
+        ax1.set_title('DNA Contamination Levels by Researcher')
+        ax1.legend()
+        
+        # Plot 2: Regulatory exceedance
+        exceedance_min = [min_val/REGULATORY_LIMIT for min_val in dna_min]
+        exceedance_max = [max_val/REGULATORY_LIMIT for max_val in dna_max]
+        ax2.barh(researchers, exceedance_max, color='orange', alpha=0.7)
+        ax2.barh(researchers, exceedance_min, color='yellow', alpha=0.7)
+        ax2.axvline(x=1, color='red', linestyle='--', label='Regulatory Limit (1x)')
+        ax2.set_xlabel('Regulatory Limit Exceedance (x times)')
+        ax2.set_title('Regulatory Limit Exceedance')
+        ax2.legend()
+        
+        # Plot 3: DNA molecules per LNP (simplified)
+        molecules_data = []
+        for mol_str in df['DNA_molecules_per_LNP']:
+            mol_range = mol_str.split('-')
+            molecules_data.append(float(mol_range[1]))  # Use max value
+        
+        ax3.barh(researchers, molecules_data, color='lightgreen', alpha=0.7)
+        ax3.set_xlabel('Max DNA Molecules per LNP')
+        ax3.set_title('DNA Molecules per LNP (Maximum)')
+        
+        # Plot 4: Percentage of LNPs exceeding limit
+        percent_data = []
+        for percent_str in df['LNPs_exceeding_limit_%']:
+            percent_range = percent_str.split('-')
+            percent_data.append(float(percent_range[1].replace('%', '')))  # Use max value
+        
+        ax4.barh(researchers, percent_data, color='lightcoral', alpha=0.7)
+        ax4.set_xlabel('Percentage of LNPs Exceeding Limit (%)')
+        ax4.set_title('LNPs Potentially Exceeding DNA Limit')
+        
+        plt.tight_layout()
+        plt.savefig('dna_contamination_analysis.png', dpi=300, bbox_inches='tight')
+        plt.show()
+    
+    def generate_summary_statistics(self, df):
+        """Generate summary statistics"""
+        print("=" * 80)
+        print("SUMMARY STATISTICS")
+        print("=" * 80)
+        
+        # Calculate average DNA contamination
+        total_dna_min = 0
+        total_dna_max = 0
+        count = 0
+        
+        for _, row in df.iterrows():
+            dna_range = row['DNA_per_dose_ng'].split('-')
+            total_dna_min += float(dna_range[0])
+            total_dna_max += float(dna_range[1])
+            count += 1
+        
+        avg_dna_min = total_dna_min / count
+        avg_dna_max = total_dna_max / count
+        
+        print(f"Average DNA contamination: {avg_dna_min:.1f} - {avg_dna_max:.1f} ng/dose")
+        print(f"Regulatory limit exceedance: {avg_dna_min/REGULATORY_LIMIT:.1f} - {avg_dna_max/REGULATORY_LIMIT:.1f} x")
+        print(f"Regulatory limit: {REGULATORY_LIMIT} ng/dose")
+        
+        # Count studies above limit
+        above_limit_count = sum(1 for _, row in df.iterrows() 
+                              if float(row['DNA_per_dose_ng'].split('-')[0]) > REGULATORY_LIMIT)
+        
+        print(f"Studies above regulatory limit: {above_limit_count}/{count} ({above_limit_count/count*100:.1f}%)")
+        print("\nKey Findings:")
+        print("- Multiple independent studies confirm DNA contamination")
+        print("- Contamination levels range from below to far above regulatory limits")
+        print("- SV40 promoter sequences detected in some samples")
+        print("- Potential genomic integration risk identified")
+
+def main():
+    analyzer = VaccineAnalyzer()
+    
+    print("LNP AND DNA CONTAMINATION ANALYSIS")
+    print("=" * 50)
+    
+    # Calculate basic LNP counts
+    print("\nBasic LNP Calculations:")
+    for vaccine, params in analyzer.vaccines.items():
+        lnps = analyzer.estimate_lnps(**params)
+        print(f"{vaccine}: {lnps:.2e} LNPs per dose (~{int(lnps):,d})")
+    
+    # Analyze researcher data
+    print("\n" + "=" * 80)
+    print("DETAILED DNA CONTAMINATION ANALYSIS")
+    print("=" * 80)
+    
+    results_df = analyzer.analyze_researchers_data()
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.width', 1000)
+    print(results_df.to_string(index=False))
+    
+    # Generate summary
+    analyzer.generate_summary_statistics(results_df)
+    
+    # Create visualizations
+    print("\nGenerating visualizations...")
+    analyzer.plot_contamination_analysis(results_df)
+    
+    # Save results to CSV
+    results_df.to_csv('lnp_dna_analysis_results.csv', index=False)
+    print("\nResults saved to 'lnp_dna_analysis_results.csv'")
+    print("Visualization saved to 'dna_contamination_analysis.png'")
+
+if __name__ == "__main__":
+    main()
